@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtemp, rm, readFile, writeFile, link, symlink, access, realpath } from 'node:fs/promises'
-import { join, basename, resolve, isAbsolute } from 'node:path'
+import { join, basename, dirname, isAbsolute } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
@@ -14,8 +14,11 @@ async function workspace(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-architecture-test-'))
   try { await fn(dir) } finally {
     // Delete only the unique test directory created above, never a user-supplied path.
-    assert.ok(isAbsolute(dir) && basename(dir).startsWith('dsh-architecture-test-'))
-    assert.ok(samePath(await realpath(dir), resolve(dir)), `${await realpath(dir)} !== ${resolve(dir)}`)
+    // Compare resolved paths: realpath expands 8.3 short names on Windows (RUNNER~1) and
+    // follows the /var -> /private/var symlink on macOS, so it never equals resolve() there.
+    const realDir = await realpath(dir), realTemp = await realpath(tmpdir())
+    assert.ok(isAbsolute(dir) && basename(realDir).startsWith('dsh-architecture-test-'), `unexpected test directory ${realDir}`)
+    assert.ok(samePath(dirname(realDir), realTemp), `${realDir} is not inside ${realTemp}`)
     // Windows releases handles lazily (antivirus, indexer), so recursive removal needs retries.
     await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
