@@ -12,7 +12,11 @@ const samePath = (a, b) => (CASE_INSENSITIVE_FS ? a.toLowerCase() === b.toLowerC
 function invoke(args, cwd) { return spawnSync(process.execPath, [cli, ...args], { cwd, encoding: 'utf8', timeout: 20000 }) }
 async function workspace(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-architecture-test-'))
-  try { await fn(dir) } finally {
+  try {
+    // Tests receive the resolved path: process.cwd() reports the physical directory, so CLI
+    // output never carries Windows 8.3 short names or the macOS /var -> /private/var prefix.
+    await fn(await realpath(dir))
+  } finally {
     // Delete only the unique test directory created above, never a user-supplied path.
     // Compare resolved paths: realpath expands 8.3 short names on Windows (RUNNER~1) and
     // follows the /var -> /private/var symlink on macOS, so it never equals resolve() there.
