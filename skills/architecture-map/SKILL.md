@@ -27,6 +27,16 @@ metadata:
 
 首次写规格先读取 `references/specification.md`，必要时读 `../../examples/plugin-flow.spec.json`。用 DSH write 编辑规格；示例只是结构参考，不是目标项目证据。
 
+Windows 上 DSH shell 是 PowerShell，`"${VAR:-default}"` 展开不成立，改用（`$node` 已含解释器选择，直接调用即可）：
+
+```powershell
+$node = if ($env:DSH_NODE_EXECUTABLE) { $env:DSH_NODE_EXECUTABLE } else { 'node' }
+& $node "[SKILL_BASE]\..\..\lib\cli.mjs" --help
+& $node "[SKILL_BASE]\..\..\lib\cli.mjs" render "[WORKSPACE]\artifacts\architecture.source.json" --out "[WORKSPACE]\artifacts\architecture.html"
+```
+
+路径分隔符用 `\` 或 `/` 均可（Node 接受正斜杠），含空格的路径整体加引号。Windows 的路径比较不区分大小写，`--out` 与输入只差大小写会被判为同一文件并拒绝写入；目标被其他程序占用时报 `EPERM`/`EBUSY`，先在提示中说明需关闭占用程序。
+
 ```bash
 "${DSH_NODE_EXECUTABLE:-node}" "[SKILL_BASE]/../../lib/cli.mjs" validate "[WORKSPACE]/artifacts/architecture.source.json"
 "${DSH_NODE_EXECUTABLE:-node}" "[SKILL_BASE]/../../lib/cli.mjs" render "[WORKSPACE]/artifacts/architecture.source.json" --out "[WORKSPACE]/artifacts/architecture.html"

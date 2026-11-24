@@ -41,7 +41,15 @@ node lib/cli.mjs render /workspace/artifacts/architecture.source.json --out /wor
 node lib/cli.mjs compare before.source.json after.source.json --out /workspace/artifacts/diff.json
 ```
 
-DSH shell 中优先使用 `"$DSH_NODE_EXECUTABLE"` 代替 `node`。render 输出：
+DSH shell 中优先使用 `"$DSH_NODE_EXECUTABLE"` 代替 `node`。Windows PowerShell 对应写法：
+
+```powershell
+$node = if ($env:DSH_NODE_EXECUTABLE) { $env:DSH_NODE_EXECUTABLE } else { 'node' }
+& $node lib/cli.mjs init --out .\artifacts\architecture.source.json
+& $node lib/cli.mjs render .\artifacts\architecture.source.json --out .\artifacts\architecture.html
+```
+
+render 输出：
 
 - `architecture.html` — 下载后用浏览器打开，自包含交互图。
 - `architecture.svg` — 独立矢量图。
@@ -87,6 +95,23 @@ dsh plugin --profile web remove @local/dsh-architecture
 
 上游支持 10 类图、explain、compare 与多语言 Code Analysis；其中语言解析器有不同依赖，例如 Go/Rust/C/C++ 不能统称全语言零依赖。本插件提供相同方向的图谱与解释/比较功能，代码建模由 DSH Agent 完成，未移植上游语言 AST 分析器、其专用布局/动画/质量门禁或浏览器自动验收系统。原适配器 MIT，原 Archify Skill Apache-2.0；本插件的原创实现采用 MIT。
 
+## Windows 支持
+
+插件本身是纯 Node ESM，无原生模块、无构建步骤，Windows 与 Linux/macOS 行为一致。以下平台差异已在实现中显式处理：
+
+| 差异 | 处理方式 |
+| --- | --- |
+| 路径大小写不敏感 | 判断“产物路径是否等于输入”“目标是否已存在”时按 `resolve()` 后不区分大小写比较（Windows 与 macOS），避免 `MAP.html` 与 `map.html` 被当成两个文件而互相覆盖 |
+| `dev`/`ino` 不稳定 | NTFS 返回真实 ino；网络盘与 FAT/exFAT 会让所有文件 ino 为 0，此时回退为解析后的路径作为同一性判断，不会误报“产物指向输入” |
+| 没有 `O_NOFOLLOW` | Windows 不提供该标志，符号链接/联接点由写入前的 `lstat` 预检拦截 |
+| 文件被占用 | 浏览器、编辑器或杀毒软件持有句柄时 `open` 返回 `EPERM`/`EBUSY`，CLI 给出明确指出占用原因的报错 |
+| 符号链接需特权 | 普通账户默认不能创建符号链接（需管理员或开发者模式），相关测试在无权限时以诊断信息跳过，硬链接断言仍执行 |
+| 下载文件名 | 清洗 `< > : " / \ \| ? *` 等非法字符，并规避 `CON`/`PRN`/`AUX`/`NUL`/`COM1-9`/`LPT1-9` 设备名与结尾的点、空格 |
+| 换行 | `.gitattributes` 强制 LF，即使 Git for Windows 默认 `core.autocrlf=true` 也不把 CRLF 带进工作区 |
+| 扩展名大小写 | `--out MAP.HTML`、`init --out SOURCE.JSON` 均可接受 |
+
+需要留意的两点：扩展名与路径大小写在 **Linux 上仍按原样区分**（同一仓库在两种系统上的产物命名可能不同）；`artifacts/` 已在 `.gitignore` 中，产物不会被误提交。
+
 ## 测试与验证
 
 ```bash
@@ -94,6 +119,8 @@ node --test test/*.test.mjs
 node --check assets/viewer.js
 ```
 
-本插件包含规格、引用、数量边界、注入转义、10 类渲染、CLI 文件保护和 Provider 注册测试。完整测试用 Python 3 标准库检查 SVG XML（测试依赖，生成器运行只需 Node）。没有浏览器控制的环境中，只验证脚本语法、文件/XML 结构和真实技能加载，不声称已验收交互、布局或深浅色的视觉效果。
+PowerShell 下同样可直接运行；`test/*.test.mjs` 由 Node 测试运行器自己展开，不依赖 shell 通配符。
 
-多文件写入不是事务：磁盘/权限中途错误可能留下部分产物，CLI 会报失败。默认 no-clobber，输入与输出不得重叠，输出目标不接受符号链接。
+本插件包含规格、引用、数量边界、注入转义、10 类渲染、CLI 文件保护和 Provider 注册测试。完整测试用 Python 3 标准库检查 SVG XML（测试依赖，生成器运行只需 Node）。测试按 `python3` → `python` → `py -3`（Windows 优先 `py -3`）顺序探测解释器，SVG 以 **字节流** 送入 expat：Windows 的 stdin 文本模式会按 ANSI 代码页（简中为 GBK）解码并启用 surrogateescape，UTF-8 中文会被解成孤立代理码位而报 `UnicodeEncodeError`，用字节流可完全绕开本地代码页。本机没有可用 Python 3 时，XML 良构性断言以诊断信息跳过，Node 侧结构断言仍生效。CI 在 Ubuntu、Windows、macOS 三平台 × Node 22/24 上运行。没有浏览器控制的环境中，只验证脚本语法、文件/XML 结构和真实技能加载，不声称已验收交互、布局或深浅色的视觉效果。
+
+多文件写入不是事务：磁盘/权限中途错误可能留下部分产物，CLI 会报失败。默认 no-clobber，输入与输出不得重叠，输出目标不接受符号链接，产物目标被其他程序占用时按平台给出明确报错。

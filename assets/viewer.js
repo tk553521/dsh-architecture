@@ -211,7 +211,13 @@
   applyTheme(systemDark.matches);
   if (systemDark.addEventListener) systemDark.addEventListener('change', e => { if (!manualTheme) applyTheme(e.matches); });
   byId('theme-toggle').addEventListener('click', () => { manualTheme = true; applyTheme(!document.documentElement.classList.contains('dark')); });
-  const filename = spec.title.replace(/[\u0000-\u001f<>:"/\\|?*\u007f]/g, '-').replace(/^\.+|\.+$/g, '').slice(0, 80).trim() || 'architecture';
+  // Windows 拒绝 CON/NUL/COM1 等设备名，也忽略结尾的点与空格；下载名在此收紧。
+  const RESERVED_DEVICE = /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i;
+  const filename = (() => {
+    let name = spec.title.replace(/[\u0000-\u001f<>:"/\\|?*\u007f]/g, '-').replace(/^[.\s]+|[.\s]+$/g, '').slice(0, 80).trim();
+    if (RESERVED_DEVICE.test(name)) name = `_${name}`;
+    return name || 'architecture';
+  })();
   function download(content, mime, extension) {
     const url = URL.createObjectURL(new Blob([content], { type: mime }));
     const link = element('a');

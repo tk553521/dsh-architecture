@@ -6,13 +6,18 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 const cli = fileURLToPath(new URL('../lib/cli.mjs', import.meta.url))
-function invoke(args, cwd) { return spawnSync(process.execPath, [cli, ...args], { cwd, encoding: 'utf8', timeout: 10000 }) }
+// Windows and macOS resolve paths case-insensitively, so path comparisons must follow.
+const CASE_INSENSITIVE_FS = process.platform === 'win32' || process.platform === 'darwin'
+const samePath = (a, b) => (CASE_INSENSITIVE_FS ? a.toLowerCase() === b.toLowerCase() : a === b)
+function invoke(args, cwd) { return spawnSync(process.execPath, [cli, ...args], { cwd, encoding: 'utf8', timeout: 20000 }) }
 async function workspace(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-architecture-test-'))
   try { await fn(dir) } finally {
     // Delete only the unique test directory created above, never a user-supplied path.
     assert.ok(isAbsolute(dir) && basename(dir).startsWith('dsh-architecture-test-'))
-    assert.equal(await realpath(dir), resolve(dir)); await rm(dir, { recursive: true })
+    assert.ok(samePath(await realpath(dir), resolve(dir)), `${await realpath(dir)} !== ${resolve(dir)}`)
+    // Windows releases handles lazily (antivirus, indexer), so recursive removal needs retries.
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 }
 const fixture = { schemaVersion: 1, title: 'test', nodes: [{ id: 'a' }], edges: [] }
@@ -43,13 +48,20 @@ test('invalid specification writes no outputs', () => workspace(async dir => {
   const res = invoke(['render', 'source.json', '--out', 'map.html'], dir)
   assert.equal(res.status, 1); await assert.rejects(access(join(dir, 'map.html')))
 }))
-test('hardlinked and symlinked output never truncates input with force', () => workspace(async dir => {
+test('hardlinked and symlinked output never truncates input with force', t => workspace(async dir => {
   const input = join(dir, 'source.json'), raw = JSON.stringify(fixture)
   await writeFile(input, raw); await link(input, join(dir, 'hard.html'))
   const hard = invoke(['render', input, '--out', 'hard.html', '--force'], dir)
   assert.equal(hard.status, 1); assert.match(hard.stderr, /硬链接/)
   assert.equal(await readFile(input, 'utf8'), raw)
-  await symlink(input, join(dir, 'sym.html'))
+  try {
+    // Windows only permits symlink creation for elevated processes or Developer Mode.
+    await symlink(input, join(dir, 'sym.html'), 'file')
+  } catch (error) {
+    if (!['EPERM', 'EACCES', 'ENOSYS', 'UNKNOWN'].includes(error.code)) throw error
+    t.diagnostic(`跳过符号链接断言：当前 Windows 账户无权创建符号链接（${error.code}）。`)
+    return
+  }
   assert.equal(invoke(['render', input, '--out', 'sym.html', '--force'], dir).status, 1)
   assert.equal(await readFile(input, 'utf8'), raw)
 }))
@@ -68,4 +80,17 @@ test('all targets checked before the first output write', () => workspace(async 
   const result = invoke(['render', 'source.json', '--out', 'map.html'], dir)
   assert.equal(result.status, 1); await assert.rejects(access(join(dir, 'map.html')))
   assert.equal(await readFile(join(dir, 'map.svg'), 'utf8'), 'existing-svg')
+}))
+test('uppercase extensions work and case-folded paths follow platform semantics', () => workspace(async dir => {
+  assert.equal(invoke(['init', '--out', 'SOURCE.JSON'], dir).status, 0)
+  assert.equal(invoke(['validate', 'SOURCE.JSON'], dir).status, 0)
+  const rendered = invoke(['render', 'SOURCE.JSON', '--out', 'MAP.HTML'], dir)
+  assert.equal(rendered.status, 0, rendered.stderr)
+  const files = JSON.parse(rendered.stdout).files
+  assert.ok(files.includes(join(dir, 'MAP.HTML')), files.join(','))
+  assert.ok(files.includes(join(dir, 'MAP.svg')), files.join(','))
+  const clash = invoke(['render', 'SOURCE.JSON', '--out', 'map.html'], dir)
+  // Target names differ only by case: same file on Windows/macOS, distinct on Linux.
+  if (CASE_INSENSITIVE_FS) assert.equal(clash.status, 1, '同名不同大小写的产物应判定为已存在')
+  else assert.equal(clash.status, 0, clash.stderr)
 }))

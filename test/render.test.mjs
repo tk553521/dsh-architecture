@@ -1,21 +1,22 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { spawnSync } from 'node:child_process'
 import { validateSpec, TYPES } from '../lib/spec.mjs'
 import { renderSvg, renderHtml } from '../lib/render.mjs'
+import { checkSvgXml, MISSING_PYTHON } from './helpers/xml.mjs'
 
 function fixture(type = 'architecture') {
   return validateSpec({ schemaVersion: 1, type, title: '测试 · 架构', groups: [{ id: 'g', label: '进程', trustBoundary: true }], nodes: [{ id: 'a', label: '入口', group: 'g', details: ['id UUID (PK)', '+ handle()'], start: 170000000000, end: 170000000100, evidence: [{ path: 'src/a.js', line: 1 }] }, { id: 'b', label: '存储', kind: 'store', start: 170000000100, end: 170000000300 }], edges: [{ id: 'ab', from: 'a', to: 'b', label: '调用' }, { id: 'self', from: 'b', to: 'b', label: '自调用' }], primaryPath: ['a', 'b'] })
 }
-for (const type of TYPES) test(`${type} produces self-contained valid SVG XML and HTML`, () => {
+for (const type of TYPES) test(`${type} produces self-contained valid SVG XML and HTML`, t => {
   const spec = fixture(type); const svg = renderSvg(spec); const html = renderHtml(spec)
   assert.match(svg, new RegExp(`data-diagram-type="${type}"`))
   assert.equal((svg.match(/data-node="/g) || []).length, 2)
   assert.equal((svg.match(/data-edge="/g) || []).length, 2)
   assert.ok(!/\b(?:NaN|Infinity|undefined)\b/.test(svg))
-  const xml = spawnSync('python3', ['-c', 'import sys,xml.etree.ElementTree as ET; r=ET.fromstring(sys.stdin.read()); assert r.tag=="{http://www.w3.org/2000/svg}svg"'], { input: svg, encoding: 'utf8', timeout: 5000 })
-  assert.equal(xml.status, 0, xml.stderr)
+  const xml = checkSvgXml(svg)
+  if (!xml.available) t.diagnostic(MISSING_PYTHON)
+  else assert.equal(xml.status, 0, xml.stderr)
   assert.match(html, /^<!doctype html>/)
   assert.ok(!/<(?:script|link|iframe|img)[^>]+(?:src|href)\s*=/i.test(html))
   assert.match(html, /connect-src 'none'/)
