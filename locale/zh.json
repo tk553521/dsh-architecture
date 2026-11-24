@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "架构图谱",
+    "description": "加载 architecture-map 技能，依据代码证据生成 10 类图谱，交付离线交互 HTML、SVG 与 JSON。支持点选详情、搜索、主链路、缩放、主题和规格差异比较。对话中说“用 architecture-map 分析这个仓库并生成架构图”。分析由 Agent 完成，不是自动 AST 扫描器；复杂图建议拆分。无额外依赖、后台进程或网络上传。"
+  }
+}

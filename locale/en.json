@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Architecture maps",
+    "description": "Load architecture-map to analyze code evidence and deliver 10 diagram views as offline interactive HTML, SVG and JSON. Includes node details, search, primary paths, zoom, themes and specification diffs. Ask: Use architecture-map to map this repository. Analysis is performed by the agent, not an automatic AST scanner. Split large diagrams. No extra dependencies, background processes or code uploads."
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@local/dsh-architecture",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "独立架构图谱插件：代码证据分析、JSON 规格校验、离线交互 HTML 和 SVG 图谱。",
+  "license": "MIT",
+  "author": "tk553521",
+  "repository": {"type": "git", "url": "git+https://github.com/tk553521/dsh-architecture.git"},
+  "homepage": "https://github.com/tk553521/dsh-architecture#readme",
+  "bugs": {"url": "https://github.com/tk553521/dsh-architecture/issues"},
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": ["index.js", "cordis.patch.yml", "lib", "assets", "skills", "examples", "locale", "test", "icon.svg", "README.md", "LICENSE"],
+  "scripts": {"check": "node --check index.js && node --check lib/spec.mjs && node --check lib/cli.mjs && node --check lib/render.mjs && node --check assets/viewer.js", "test": "node --test test/*.test.mjs"},
+  "engines": {"node": ">=22.19.0", "dsh": "0.2.2-rc.5"},
+  "dsh": {"bundle": {"patch": "./cordis.patch.yml"}}
+}

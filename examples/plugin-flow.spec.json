@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "type": "architecture",
+  "title": "DSH 架构图谱插件 · 从任务到离线产物",
+  "description": "本插件的真实实现路径：DSH 按需加载 Skill，Agent 依据源码组织规格，独立生成器校验并输出图谱。此图描述设计与已实现代码，不表示自动扫描任意仓库。",
+  "groups": [
+    {"id": "host", "label": "DSH 宿主 · 技能发现", "trustBoundary": true},
+    {"id": "agent", "label": "Agent · 证据分析", "trustBoundary": true},
+    {"id": "artifact", "label": "工作区 · 离线生成", "trustBoundary": true}
+  ],
+  "nodes": [
+    {"id": "registry", "label": "DSH Skill Registry", "group": "host", "description": "合并多个技能来源并按优先级选择技能。", "evidence": [{"path": "@deepseek-ai/dsh-skill/src/index.ts", "line": 390, "note": "registerProvider 的上下文生命周期与注销"}]},
+    {"id": "provider", "label": "architecture-map Provider", "group": "host", "description": "插件注册一个固定 rank=600 的技能，不增加后台服务或网络调用。", "evidence": [{"path": "index.js", "line": 33}]},
+    {"id": "skill", "label": "按需加载中文 Skill", "group": "agent", "description": "指导分析仓库入口、组件、调用链与信任边界，引用源码位置。", "evidence": [{"path": "skills/architecture-map/SKILL.md"}]},
+    {"id": "analysis", "label": "代码与运行证据分析", "group": "agent", "description": "使用 DSH 已有读取、搜索和 shell 工具，不凭依赖名称推测运行行为。", "details": ["默认 8–12 个核心组件", "区分观察、源码声明与推断", "证据写入节点详情卡"]},
+    {"id": "spec", "label": "JSON 图谱规格", "group": "artifact", "kind": "store", "description": "可审阅与重现的结构化描述，保留原始输入。", "evidence": [{"path": "lib/spec.mjs"}]},
+    {"id": "validation", "label": "严格校验", "group": "artifact", "description": "校验类型、标识符、引用、主路径与数量边界；错误有字段路径。", "evidence": [{"path": "lib/spec.mjs"}]},
+    {"id": "renderer", "label": "离线 SVG / HTML 渲染器", "group": "artifact", "description": "独立布局与嵌入式交互，无 CDN、外部字体或在线图表服务。", "evidence": [{"path": "lib/render.mjs"}]},
+    {"id": "delivery", "label": "HTML + SVG + 标准化 JSON", "group": "artifact", "description": "DSH present 发布交付文件；HTML 下载后用浏览器打开。", "details": ["点选节点查看证据", "搜索、主链路、缩放与主题", "导出 SVG / JSON"], "evidence": [{"path": "lib/cli.mjs"}]}
+  ],
+  "edges": [
+    {"id": "register", "from": "registry", "to": "provider", "label": "选择技能来源"},
+    {"id": "load", "from": "provider", "to": "skill", "label": "加载正文"},
+    {"id": "inspect", "from": "skill", "to": "analysis", "label": "按证据建模"},
+    {"id": "model", "from": "analysis", "to": "spec", "label": "编写 JSON"},
+    {"id": "check", "from": "spec", "to": "validation", "label": "validate"},
+    {"id": "render", "from": "validation", "to": "renderer", "label": "render"},
+    {"id": "deliver", "from": "renderer", "to": "delivery", "label": "发布产物"}
+  ],
+  "primaryPath": ["registry", "provider", "skill", "analysis", "spec", "validation", "renderer", "delivery"],
+  "notes": ["这是独立原创实现，与 Archify 的 JSON 格式不兼容，不使用原作者的代码与品牌素材。", "自动布局适合核心链路图；复杂图拆分成多个视图。", "图谱语义来自 Agent 的证据分析；生成器校验结构，不验证事实。"]
+}

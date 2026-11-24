@@ -1,0 +1,5 @@
+# Independent skill provider: no host-side !!js expressions or duplicated filesystem scans.
+- insert:
+    - id: local-dsh-architecture
+      name: '@local/dsh-architecture'
+      config: {}
